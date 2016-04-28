@@ -41,6 +41,7 @@ def analyze_molng(molng_path,args):
     indexed_sample_reports = {}
     ##sample_report_file = molng_path + "/Sample_Report.csv"
     for flowcell in molng_path:
+        ## print(flowcell)
         sample_report_file = flowcell + "/Sample_Report.csv"
         test_existance(sample_report_file)
         sample_from_exp  = os.listdir(os.path.dirname(sample_report_file))
@@ -52,7 +53,13 @@ def analyze_molng(molng_path,args):
             if any(sample in sample_from_exp for sample in line):
                 sample_fastq = line[0]
                 sample_name = line[4]
-                sample_fastq = flowcell + sample_fastq
+                sample_fastq = flowcell + sample_fastq              
+                if(len(line) < 17):
+                ## catch wrong Sample_Report.csv from older LIMS
+                    sys.stderr.write(space_string)
+                    sys.stderr.write(">>>   WELL... WELL.. WELL... THE NUMBER OF COLUMNS IS NOT CORRECT!\nUSING the OLD LIMS ARE WE?   \n")
+                    sys.stderr.write(space_string)
+                    sys.exit("The number of columns in Sample_Report.csv is only " + str(len(line)) + " when it should be 17   \n")
                 if(line[8] is "2" and args.paired_end is False):
                 ## catch paired end
                     sys.stderr.write(space_string)
@@ -110,6 +117,7 @@ def transcript_test_index(args):
     sys.stderr.write(space_string)
     if not os.path.exists(args.transcriptome_index + ".ver"):
         sys.stderr.write("No transcriptome detected in " + os.path.dirname(args.transcriptome_index) + "   \n")
+        sys.stderr.write("Remember! In order to create a transcriptome index you need to have the genome fasta file in teh SAME directory as the gtf/gff!   \n")
         sys.stderr.write(space_string)
     else:
         sys.stderr.write("Previous transcriptome detected!   \n")
@@ -164,7 +172,17 @@ def tophat_commander(sample_report, sample, args):
     else:
         use_bowtie_one = ""
         sys.stderr.write(">>>   Testing for bowtie2 index! To use Tophat with a bowtie1 index you MUST specify --use-bowtie1.   \n")
-        test_existance((args.bowtie_index + ".1.bt2"))
+        small_bt = os.path.isfile((args.bowtie_index + ".1.bt2"))
+        large_bt = os.path.isfile((args.bowtie_index + ".1.bt2l"))
+        if small_bt or large_bt:
+            if small_bt:
+                bt_type = 'SMALL'
+            elif large_bt:
+                bt_type = 'LARGE'
+            sys.stderr.write(">>>   Found bowtie2 " + bt_type + " index. Great job !   \n")
+        else:
+            sys.stderr.write(">>>   Can't find .1.bt2 or .1.bt2l   \n")
+            test_existance((args.bowtie_index + ".1.bt2"))
     if args.gtf_index is "":
         use_gtf = ""
     else:
@@ -249,7 +267,11 @@ def index_job_command(sample_name, job_id, command, args):
     sys.stderr.write(space_string)
     sys.stderr.write(">>> " + final_out  + " \n")
     sys.stderr.write(space_string)
+    sys.stderr.write(">>>   Many congratulations. You did it! Give yourself a pat on the back.   \n")    
+    sys.stderr.write(space_string)
     sys.stderr.write(">>>   Results in:" + args.output_dir + " bam folder!   \n")
+    sys.stderr.write(space_string)    
+    sys.stderr.write(">>>   Check the SGE_out file post-run for logs and potential internal errors.   \n")
     sys.stderr.write(space_string)
     return index_job_id
 
@@ -258,7 +280,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--directories', action='store', nargs='*', dest='molng_path', required=True,
-                        help="Path to the location of a flowcells containting the fastqs and the Sample_Report.csv file describing the samples. Multiple diretories may be passed (seperated by space)")
+                        help="Path to the location of a flowcells containting the fastqs and the Sample_Report.csv file describing the samples. Multiple directories may be passed (separated by space)")
     
     parser.add_argument('--transcriptome-index', action='store', dest='transcriptome_index', default='',
                         help='Path to pre-built transcriptome index or location for building an index')
